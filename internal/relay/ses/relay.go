@@ -4,6 +4,7 @@ import (
 	"net"
 	"regexp"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ses"
 	"github.com/aws/aws-sdk-go/service/ses/sesiface"
@@ -56,7 +57,9 @@ func New(
 	denyToRegExp *regexp.Regexp,
 ) Client {
 	return Client{
-		sesAPI:          ses.New(session.Must(session.NewSession())),
+		sesAPI: ses.New(session.Must(session.NewSession(&aws.Config{
+			CredentialsChainVerboseErrors: aws.Bool(true),
+		}))),
 		setName:         configurationSetName,
 		allowFromRegExp: allowFromRegExp,
 		denyToRegExp:    denyToRegExp,
