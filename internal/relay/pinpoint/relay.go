@@ -1,18 +1,23 @@
 package relay
 
 import (
+	"context"
 	"net"
 	"regexp"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/pinpointemail"
-	"github.com/aws/aws-sdk-go/service/pinpointemail/pinpointemailiface"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/pinpointemail"
+	"github.com/aws/aws-sdk-go-v2/service/pinpointemail/types"
 	"github.com/blueimp/aws-smtp-relay/internal/relay"
 )
 
+type pinpointemailSendEmailAPI interface {
+	SendEmail(ctx context.Context, params *pinpointemail.SendEmailInput, optFns ...func(*pinpointemail.Options)) (*pinpointemail.SendEmailOutput, error)
+}
+
 // Client implements the Relay interface.
 type Client struct {
-	pinpointAPI     pinpointemailiface.PinpointEmailAPI
+	pinpointAPI     pinpointemailSendEmailAPI
 	setName         *string
 	allowFromRegExp *regexp.Regexp
 	denyToRegExp    *regexp.Regexp
@@ -35,14 +40,14 @@ func (c Client) Send(
 		relay.Log(origin, &from, deniedRecipients, err)
 	}
 	if len(allowedRecipients) > 0 {
-		_, err := c.pinpointAPI.SendEmail(&pinpointemail.SendEmailInput{
+		_, err := c.pinpointAPI.SendEmail(context.TODO(), &pinpointemail.SendEmailInput{
 			ConfigurationSetName: c.setName,
 			FromEmailAddress:     &from,
-			Destination: &pinpointemail.Destination{
+			Destination: &types.Destination{
 				ToAddresses: allowedRecipients,
 			},
-			Content: &pinpointemail.EmailContent{
-				Raw: &pinpointemail.RawMessage{
+			Content: &types.EmailContent{
+				Raw: &types.RawMessage{
 					Data: data,
 				},
 			},
@@ -61,8 +66,13 @@ func New(
 	allowFromRegExp *regexp.Regexp,
 	denyToRegExp *regexp.Regexp,
 ) Client {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		panic(err)
+	}
+
 	return Client{
-		pinpointAPI:     pinpointemail.New(session.Must(session.NewSession())),
+		pinpointAPI:     pinpointemail.NewFromConfig(cfg),
 		setName:         configurationSetName,
 		allowFromRegExp: allowFromRegExp,
 		denyToRegExp:    denyToRegExp,
